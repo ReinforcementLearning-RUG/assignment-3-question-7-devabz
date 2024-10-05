@@ -27,11 +27,15 @@ class MCEvaluator(AbstractEvaluator):
         """
         self.value_fun.fill(0)  # Reset value function.
         self.returns.clear()
-
+        ep_rewards = []
+        ep_length = []
         for _ in range(num_episodes):
             episode = self._generate_episode(policy)
-            self._update_value_function(episode)
-        return self.value_fun.copy()
+            ep_reward = self._update_value_function(episode)
+            ep_rewards.append(ep_reward)
+            ep_length.append(len(episode))
+            
+        return self.value_fun.copy(), ep_rewards, ep_length
 
     def _generate_episode(self, policy: AbstractPolicy) -> List[Tuple[int, int, float]]:
         """
@@ -57,4 +61,15 @@ class MCEvaluator(AbstractEvaluator):
 
         :param episode: A list of (state, action, reward) tuples.
         """
-        pass
+        ep_reward = 0
+        gamma = 0.9
+        states, *_ = zip(episode)
+        for t, (s, a, r) in enumerate(episode[:]):
+            self.returns[s].append(gamma * self.returns[s][-1] + r  if self.returns[s] else r)
+            if s not in states[:-(t + 1)]:
+                self.value_fun[s] = np.mean(self.returns[s])
+            
+            ep_reward += r
+        
+        return ep_reward
+        

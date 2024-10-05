@@ -32,10 +32,14 @@ class TDLambdaEvaluator(AbstractEvaluator):
         """
         self.value_fun.fill(0)              # Reset value function.
 
+        ep_rewards = []
+        ep_length = []
         for _ in range(num_episodes):
-            self._update_value_function(policy)
-
-        return self.value_fun.copy()
+            ep_reward, steps = self._update_value_function(policy)
+            ep_rewards.append(ep_reward)
+            ep_length.append(steps)
+            
+        return self.value_fun.copy(), ep_rewards, ep_length
 
     def _update_value_function(self, policy: AbstractPolicy) -> None:
         """
@@ -43,4 +47,24 @@ class TDLambdaEvaluator(AbstractEvaluator):
 
         :param policy: A policy object that provides action probabilities for each state.
         """
-        pass
+        gamma = self.env.discount_factor
+        state, t = self.env.reset(), 0
+        terminal = False
+        ep_reward = 0
+        steps = 0
+        self.eligibility_traces = np.zeros_like(self.eligibility_traces)
+        while not terminal:
+            t += 1
+            steps += 1
+            action = policy.sample_action(state=state)
+            next_state, reward, terminal = self.env.step(action)
+            td_target = reward + gamma * self.value_fun[next_state]
+            td_error = td_target - self.value_fun[state]
+            self.value_fun[state] = self.value_fun[state] + self.alpha * self.eligibility_traces[state] * td_error
+            state = next_state
+            ep_reward += reward
+            self.eligibility_traces[state] += 1
+            self.eligibility_traces *= self.lambd
+            
+        return ep_reward, steps
+        
